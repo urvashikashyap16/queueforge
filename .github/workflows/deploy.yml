@@ -1,13 +1,10 @@
 name: Deploy to AWS
 
-# Runs after CI passes on main. Needs these repository settings:
+# Manual only — run from the Actions tab when you're ready to deploy to AWS.
+# Needs these repository settings first:
 #   secrets.AWS_DEPLOY_ROLE_ARN - IAM role trusted for GitHub OIDC (no long-lived AWS keys)
 #   vars.AWS_REGION             - e.g. ap-south-1
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
