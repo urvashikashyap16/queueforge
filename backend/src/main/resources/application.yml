@@ -1,0 +1,50 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: queueforge
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/queueforge}
+    username: ${DB_USERNAME:queueforge}
+    password: ${DB_PASSWORD:queueforge}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  flyway:
+    enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+queueforge:
+  worker:
+    enabled: ${WORKER_ENABLED:true}
+    concurrency: ${WORKER_CONCURRENCY:8}
+    poll-interval-ms: 500
+    lease-seconds: 30
+    heartbeat-seconds: 10
+  retry:
+    base-delay-ms: 2000
+    max-delay-ms: 300000
+    jitter: 0.2
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}
+    zone: ${SCHEDULER_ZONE:Asia/Kolkata}
+  demo:
+    seed-schedules: ${DEMO_SEED:true}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,0 +1,42 @@
+# Local stack: PostgreSQL + Spring Boot API/workers + React dashboard.
+#   docker compose up --build
+#   docker compose up --build --scale backend=3     <- see 3 workers share one queue
+# Dashboard: http://localhost:3000   API docs: proxied at http://localhost:3000/api/...
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: queueforge
+      POSTGRES_USER: queueforge
+      POSTGRES_PASSWORD: queueforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queueforge"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/queueforge
+      DB_USERNAME: queueforge
+      DB_PASSWORD: queueforge
+      WORKER_CONCURRENCY: 8
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

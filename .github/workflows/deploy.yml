@@ -1,0 +1,53 @@
+name: Deploy to AWS
+
+# Runs after CI passes on main. Needs these repository settings:
+#   secrets.AWS_DEPLOY_ROLE_ARN - IAM role trusted for GitHub OIDC (no long-lived AWS keys)
+#   vars.AWS_REGION             - e.g. ap-south-1
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        run: |
+          REGISTRY=${{ steps.ecr.outputs.registry }}
+          docker build -t $REGISTRY/queueforge-backend:$IMAGE_TAG -t $REGISTRY/queueforge-backend:latest backend
+          docker build -t $REGISTRY/queueforge-frontend:$IMAGE_TAG -t $REGISTRY/queueforge-frontend:latest frontend
+          docker push --all-tags $REGISTRY/queueforge-backend
+          docker push --all-tags $REGISTRY/queueforge-frontend
+
+      - uses: hashicorp/setup-terraform@v3
+
+      # Rolling deploy: new task definitions with the new image tag; ECS replaces tasks gradually
+      # and the circuit breaker rolls back automatically if the new version fails health checks.
+      - name: Terraform apply
+        working-directory: infra/terraform
+        run: |
+          terraform init
+          terraform apply -auto-approve -var="image_tag=$IMAGE_TAG" -var="region=$AWS_REGION"
